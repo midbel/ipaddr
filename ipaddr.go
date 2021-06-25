@@ -287,26 +287,8 @@ type Net struct {
 }
 
 func ParseNet(str string) (Net, error) {
-	var (
-		x   = strings.Index(str, "/")
-		n   Net
-		err error
-	)
-	if x <= 0 {
-		return n, ErrInvalid
-	}
-	if n.ip, err = ParseIP(str[:x]); err != nil {
-		return n, err
-	}
-	if n.ip.zone == z4 {
-		n.mask, err = mask32(str[x+1:])
-	} else {
-		n.mask, err = mask128(str[x+1:])
-	}
-	if err == nil {
-		n.ip.set = n.mask.and(n.ip.set)
-	}
-	return n, err
+	_, nw, err := ParseCIDR(str)
+	return nw, err
 }
 
 func (n Net) Contains(ip IP) bool {
