@@ -26,7 +26,7 @@ func main() {
 		Line  string
 		Value interface{}
 		Only4 bool
-    Only6 bool
+		Only6 bool
 	}{
 		{Line: "address    : %s", Value: ip},
 		{Line: "IPv4       : %s", Value: ip.Is4()},

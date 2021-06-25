@@ -196,13 +196,13 @@ func (i IP) Net() (Net, error) {
 }
 
 func (i IP) DefaultMask() int {
-  if i.zone == 0 {
-    return 0
-  }
-	if i.zone == z4 {
-    return defaultNetmaskIPv4(i)
+	if i.zone == 0 {
+		return 0
 	}
-  return defaultNetmaskIPv6(i)
+	if i.zone == z4 {
+		return defaultNetmaskIPv4(i)
+	}
+	return defaultNetmaskIPv6(i)
 
 }
 
@@ -309,13 +309,13 @@ func (n Net) IsZero() bool {
 }
 
 func (n Net) Count() float64 {
-  if n.ip.zone == 0 {
-    return 0
-  }
-  if n.ip.zone == z4 {
-    return countHostsNetv4(n.mask)
-  }
-  return countHostsNetv6(n.mask)
+	if n.ip.zone == 0 {
+		return 0
+	}
+	if n.ip.zone == z4 {
+		return countHostsNetv4(n.mask)
+	}
+	return countHostsNetv6(n.mask)
 }
 
 func (n Net) Broadcast() IP {
@@ -364,18 +364,18 @@ func setbits(n, limit uint64) (bitset, error) {
 	if n > limit {
 		return b, ErrInvalid
 	}
-  if limit == netmask128 {
-    if n < netmask64 {
-      diff := netmask64 - n
-      b.high = ((1 << n) - 1) << diff
-      return b, nil
-    }
-    if n >= netmask64 {
-      b.high = (1 << 64) - 1
-      n -= netmask64
-      limit -= netmask64
-    }
-  }
+	if limit == netmask128 {
+		if n < netmask64 {
+			diff := netmask64 - n
+			b.high = ((1 << n) - 1) << diff
+			return b, nil
+		}
+		if n >= netmask64 {
+			b.high = (1 << 64) - 1
+			n -= netmask64
+			limit -= netmask64
+		}
+	}
 	if n > 0 {
 		diff := limit - n
 		b.low = ((1 << n) - 1) << diff
