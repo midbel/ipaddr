@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"math/bits"
 	"net"
 	"strconv"
@@ -15,10 +16,11 @@ var ErrInvalid = errors.New("invalid IP address")
 const (
 	netmask4   = 4
 	netmask8   = 8
+	netmask10  = 10
 	netmask16  = 16
 	netmask24  = 24
 	netmask32  = 32
-	netmask64 = 64
+	netmask64  = 64
 	netmask128 = 128
 )
 
@@ -194,23 +196,14 @@ func (i IP) Net() (Net, error) {
 }
 
 func (i IP) DefaultMask() int {
-  if i.zone == z6 {
-    return netmask64
+  if i.zone == 0 {
+    return 0
   }
-	var mask int
-	switch i.Class() {
-	case ClassA:
-		mask = netmask8
-	case ClassB:
-		mask = netmask16
-	case ClassC:
-		mask = netmask24
-	case ClassD:
-		mask = netmask4
-	default:
-    mask = netmask32
+	if i.zone == z4 {
+    return defaultNetmaskIPv4(i)
 	}
-	return mask
+  return defaultNetmaskIPv6(i)
+
 }
 
 func (i IP) IsLoopback() bool {
@@ -315,12 +308,14 @@ func (n Net) IsZero() bool {
 	return n.ip.set.isZero() && n.mask.isZero()
 }
 
-func (n Net) Count() int {
-	z := n.mask.zeros()
-	if z <= 1 {
-		return 1
-	}
-	return (1 << z) - 2
+func (n Net) Count() float64 {
+  if n.ip.zone == 0 {
+    return 0
+  }
+  if n.ip.zone == z4 {
+    return countHostsNetv4(n.mask)
+  }
+  return countHostsNetv6(n.mask)
 }
 
 func (n Net) Broadcast() IP {
@@ -369,11 +364,18 @@ func setbits(n, limit uint64) (bitset, error) {
 	if n > limit {
 		return b, ErrInvalid
 	}
-	if limit == netmask128 && n >= 64 {
-		b.high = (1 << 64) - 1
-		limit /= 2
-		n -= limit
-	}
+  if limit == netmask128 {
+    if n < netmask64 {
+      diff := netmask64 - n
+      b.high = ((1 << n) - 1) << diff
+      return b, nil
+    }
+    if n >= netmask64 {
+      b.high = (1 << 64) - 1
+      n -= netmask64
+      limit -= netmask64
+    }
+  }
 	if n > 0 {
 		diff := limit - n
 		b.low = ((1 << n) - 1) << diff
@@ -558,18 +560,65 @@ func formatIPv6(ip IP) string {
 		}
 	}
 	if curr.run > 0 || prev.run > 0 {
-    if curr.run == 0 {
-      curr = prev
-    }
-    if curr.end == 0 {
-      curr.end = len(str)
-    }
+		if curr.run == 0 {
+			curr = prev
+		}
+		if curr.end == 0 {
+			curr.end = len(str)
+		}
 		str = append(str[:curr.beg], append([]byte{colon}, str[curr.end:]...)...)
 		if curr.beg == 0 {
 			str = append([]byte{colon}, str...)
 		}
 	}
 	return string(str)
+}
+
+func defaultNetmaskIPv6(ip IP) int {
+	switch {
+	case ip.IsUndefined() || ip.IsLoopback():
+		return netmask128
+	case ip.IsMulticast():
+		return netmask8
+	case ip.IsLinkLocal():
+		return netmask10
+	default:
+		return netmask64
+	}
+}
+
+func defaultNetmaskIPv4(ip IP) int {
+	var mask int
+	switch ip.Class() {
+	case ClassA:
+		mask = netmask8
+	case ClassB:
+		mask = netmask16
+	case ClassC:
+		mask = netmask24
+	case ClassD:
+		mask = netmask4
+	default:
+		mask = netmask32
+	}
+	return mask
+}
+
+func countHostsNetv4(mask bitset) float64 {
+	z := mask.zeros()
+	if z <= 1 {
+		return 1
+	}
+	return math.Pow(2, float64(z)) - 2
+}
+
+func countHostsNetv6(mask bitset) float64 {
+	fmt.Println("count hosts v6:", mask.zeros())
+	z := mask.zeros()
+	if z <= 1 {
+		return 1
+	}
+	return math.Pow(2, float64(z))
 }
 
 func copybytes(ip net.IP, part uint64) {
