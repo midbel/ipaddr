@@ -109,6 +109,9 @@ func FromStdIP(ip net.IP) (IP, error) {
 		return IPv4(ip[0], ip[1], ip[2], ip[3]), nil
 	}
 	if len(ip) == net.IPv6len {
+		if allBytes(ip[:10], 0x0) && allBytes(ip[10:12], 0xFF) {
+			return IPv4(ip[12], ip[13], ip[14], ip[15])
+		}
 		var (
 			a = binary.BigEndian.Uint16(ip[0:])
 			b = binary.BigEndian.Uint16(ip[2:])
@@ -561,4 +564,13 @@ func copybytes(ip net.IP, part uint64) {
 	ip[5] = byte(part >> 16)
 	ip[6] = byte(part >> 8)
 	ip[7] = byte(part)
+}
+
+func allBytes(b net.IP, want byte) bool {
+	for i := range b {
+		if b[i] != want {
+			return false
+		}
+	}
+	return true
 }
