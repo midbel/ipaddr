@@ -25,6 +25,7 @@ func main() {
 	fields := []struct {
 		Line  string
 		Value interface{}
+    Only4 bool
 	}{
 		{Line: "address   : %s", Value: ip},
 		{Line: "IPv4      : %s", Value: ip.Is4()},
@@ -32,13 +33,16 @@ func main() {
 		{Line: "private   : %s", Value: ip.IsPrivate()},
 		{Line: "loopback  : %s", Value: ip.IsLoopback()},
 		{Line: "multicast : %s", Value: ip.IsMulticast()},
-		{Line: "class     : %s", Value: ip.Class().String()},
+		{Line: "class     : %s", Value: ip.Class().String(), Only4: true},
 		{Line: "network   : %s", Value: nw.Address()},
-		{Line: "broadcast : %s", Value: nw.Broadcast()},
+		{Line: "broadcast : %s", Value: nw.Broadcast(), Only4: true},
 		{Line: "netmask   : %s", Value: nw.Netmask()},
 		{Line: "host(s)   : %d", Value: nw.Count()},
 	}
 	for i := range fields {
+    if ip.Is6() && fields[i].Only4 {
+      continue
+    }
 		print(fields[i].Line, fields[i].Value)
 	}
 }
