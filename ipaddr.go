@@ -40,6 +40,13 @@ func (c Class) String() string {
 	}
 }
 
+func (c Class) Contains(ip IP) bool {
+	if ip.zone != z4 {
+		return false
+	}
+	return c == ip.Class()
+}
+
 const (
 	ClassA Class = "A"
 	ClassB       = "B"
@@ -110,7 +117,7 @@ func FromStdIP(ip net.IP) (IP, error) {
 	}
 	if len(ip) == net.IPv6len {
 		if allBytes(ip[:10], 0x0) && allBytes(ip[10:12], 0xFF) {
-			return IPv4(ip[12], ip[13], ip[14], ip[15])
+			return IPv4(ip[12], ip[13], ip[14], ip[15]), nil
 		}
 		var (
 			a = binary.BigEndian.Uint16(ip[0:])
