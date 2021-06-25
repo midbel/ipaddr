@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	check = "v" //"\u2713"
-	cross = "x" //"\u2718"
+	check = "v"
+	cross = "x"
 	mark  = "?"
 )
 
@@ -25,7 +25,7 @@ func main() {
 	fields := []struct {
 		Line  string
 		Value interface{}
-    Only4 bool
+		Only4 bool
 	}{
 		{Line: "address   : %s", Value: ip},
 		{Line: "IPv4      : %s", Value: ip.Is4()},
@@ -40,9 +40,9 @@ func main() {
 		{Line: "host(s)   : %d", Value: nw.Count()},
 	}
 	for i := range fields {
-    if ip.Is6() && fields[i].Only4 {
-      continue
-    }
+		if ip.Is6() && fields[i].Only4 {
+			continue
+		}
 		print(fields[i].Line, fields[i].Value)
 	}
 }

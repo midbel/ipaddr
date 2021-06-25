@@ -148,6 +148,9 @@ func TestParseIP(t *testing.T) {
 			Addr: "2001:db8::1",
 		},
 		{
+			Addr: "2001:db8::",
+		},
+		{
 			Addr: "2001::db8::1",
 			Err:  ErrInvalid,
 		},
@@ -179,7 +182,7 @@ func TestParseIP(t *testing.T) {
 			continue
 		}
 		if err != nil {
-			t.Errorf("unexpected error while parsing %s: %s", d.Addr, err)
+			t.Errorf("%q: unexpected error while parsing: %s", d.Addr, err)
 		}
 	}
 }

@@ -18,6 +18,7 @@ const (
 	netmask16  = 16
 	netmask24  = 24
 	netmask32  = 32
+	netmask64 = 64
 	netmask128 = 128
 )
 
@@ -143,6 +144,9 @@ func IPv6(a, b, c, d, e, f, g, h uint16) IP {
 }
 
 func (i IP) String() string {
+	if i.zone == 0 {
+		return ""
+	}
 	if i.zone == z4 {
 		return formatIPv4(i)
 	}
@@ -190,6 +194,9 @@ func (i IP) Net() (Net, error) {
 }
 
 func (i IP) DefaultMask() int {
+  if i.zone == z6 {
+    return netmask64
+  }
 	var mask int
 	switch i.Class() {
 	case ClassA:
@@ -201,6 +208,7 @@ func (i IP) DefaultMask() int {
 	case ClassD:
 		mask = netmask4
 	default:
+    mask = netmask32
 	}
 	return mask
 }
@@ -309,14 +317,14 @@ func (n Net) IsZero() bool {
 
 func (n Net) Count() int {
 	z := n.mask.zeros()
-	if z == 0 {
+	if z <= 1 {
 		return 1
 	}
 	return (1 << z) - 2
 }
 
 func (n Net) Broadcast() IP {
-	if n.ip.zone != z4 {
+	if n.ip.zone != z4 || n.Count() == 1 {
 		return Zero
 	}
 	n.ip.set.low |= (1 << n.mask.zeros()) - 1
@@ -361,12 +369,15 @@ func setbits(n, limit uint64) (bitset, error) {
 	if n > limit {
 		return b, ErrInvalid
 	}
-	if limit == netmask128 && n > 64 {
+	if limit == netmask128 && n >= 64 {
 		b.high = (1 << 64) - 1
-		n -= 64
+		limit /= 2
+		n -= limit
 	}
-	diff := limit - n
-	b.low = ((1 << n) - 1) << diff
+	if n > 0 {
+		diff := limit - n
+		b.low = ((1 << n) - 1) << diff
+	}
 	return b, nil
 }
 
@@ -461,9 +472,10 @@ func parseIPv6(str string) (IP, error) {
 	if len(parts) > len(ip) || len(parts) <= 2 {
 		return Zero, ErrInvalid
 	}
-	for i, j := 0, 0; i < len(parts); i++ {
+	var j int
+	for i := 0; i < len(parts); i++ {
 		if parts[i] == "" {
-			if ellipsis {
+			if ellipsis && i < len(parts)-1 {
 				return Zero, ErrInvalid
 			}
 			ellipsis = i > 0
@@ -476,6 +488,9 @@ func parseIPv6(str string) (IP, error) {
 		}
 		ip[j] = uint16(b)
 		j++
+	}
+	if j < len(ip) {
+		return Zero, ErrInvalid
 	}
 	return IPv6(ip[0], ip[1], ip[2], ip[3], ip[4], ip[5], ip[6], ip[7]), nil
 }
@@ -542,7 +557,13 @@ func formatIPv6(ip IP) string {
 			str = append(str, colon)
 		}
 	}
-	if curr.run > 0 {
+	if curr.run > 0 || prev.run > 0 {
+    if curr.run == 0 {
+      curr = prev
+    }
+    if curr.end == 0 {
+      curr.end = len(str)
+    }
 		str = append(str[:curr.beg], append([]byte{colon}, str[curr.end:]...)...)
 		if curr.beg == 0 {
 			str = append([]byte{colon}, str...)
