@@ -16,6 +16,7 @@ const (
 	netmask4   = 4
 	netmask8   = 8
 	netmask16  = 16
+	netmask24  = 24
 	netmask32  = 32
 	netmask128 = 128
 )
@@ -65,7 +66,6 @@ func (z zone) String() string {
 	}
 }
 
-
 type IP struct {
 	set bitset
 	zone
@@ -81,6 +81,27 @@ func ParseIP(str string) (IP, error) {
 		return parseIPv6(str)
 	}
 	return Zero, ErrInvalid
+}
+
+func ParseCIDR(str string) (IP, Net, error) {
+	var (
+		x   = strings.Index(str, "/")
+		ip  IP
+		nw  Net
+		err error
+	)
+	if x <= 0 {
+		return ip, nw, ErrInvalid
+	}
+	if ip, err = ParseIP(str[:x]); err != nil {
+		return ip, nw, err
+	}
+	mask, err := strconv.ParseUint(str[x+1:], 10, 8)
+	if err != nil {
+		return ip, nw, ErrInvalid
+	}
+	nw, err = ip.Mask(uint8(mask))
+	return ip, nw, err
 }
 
 func FromStdIP(ip net.IP) (IP, error) {
@@ -104,17 +125,11 @@ func FromStdIP(ip net.IP) (IP, error) {
 }
 
 func IPv4(a, b, c, d uint8) IP {
-	var i IP
-	i.zone = z4
-	i.set = set4(a, b, c, d)
-	return i
+	return makeIP(set4(a, b, c, d), z4)
 }
 
 func IPv6(a, b, c, d, e, f, g, h uint16) IP {
-	var i IP
-	i.zone = z6
-	i.set = set8(a, b, c, d, e, f, g, h)
-	return i
+	return makeIP(set8(a, b, c, d, e, f, g, h), z6)
 }
 
 func (i IP) String() string {
@@ -139,12 +154,29 @@ func (i IP) Is4() bool {
 	return i.zone == z4
 }
 
-func (i IP) Is16() bool {
+func (i IP) Is6() bool {
 	return i.zone == z6
 }
 
-func (i IP) Net() Net {
-	return Net{}
+func (i IP) Mask(mask uint8) (Net, error) {
+	limit := netmask32
+	if i.zone == z6 {
+		limit = netmask128
+	}
+	set, err := setbits(uint64(mask), uint64(limit))
+	if err != nil {
+		return Net{}, err
+	}
+	n := Net{
+		ip:   makeIP(set.and(i.set), i.zone),
+		mask: set,
+	}
+	return n, nil
+}
+
+func (i IP) Net() (Net, error) {
+	mask := i.DefaultMask()
+	return i.Mask(uint8(mask))
 }
 
 func (i IP) DefaultMask() int {
@@ -155,7 +187,7 @@ func (i IP) DefaultMask() int {
 	case ClassB:
 		mask = netmask16
 	case ClassC:
-		mask = netmask32
+		mask = netmask24
 	case ClassD:
 		mask = netmask4
 	default:
@@ -277,7 +309,27 @@ func (n Net) IsZero() bool {
 }
 
 func (n Net) Count() int {
-	return 0
+	z := n.mask.zeros()
+	if z == 0 {
+		return 1
+	}
+	return (1 << z) - 2
+}
+
+func (n Net) Broadcast() IP {
+	if n.ip.zone != z4 {
+		return Zero
+	}
+	n.ip.set.low |= (1 << n.mask.zeros()) - 1
+	return n.ip
+}
+
+func (n Net) Address() IP {
+	return n.ip
+}
+
+func (n Net) Netmask() IP {
+	return makeIP(n.mask, n.ip.zone)
 }
 
 func (n Net) String() string {
@@ -290,18 +342,22 @@ type bitset struct {
 }
 
 func mask128(str string) (bitset, error) {
-	return setbits(str, netmask128)
+	return parseBits(str, netmask128)
 }
 
 func mask32(str string) (bitset, error) {
-	return setbits(str, netmask32)
+	return parseBits(str, netmask32)
 }
 
-func setbits(str string, limit uint64) (bitset, error) {
+func parseBits(str string, limit uint64) (bitset, error) {
 	n, err := strconv.ParseUint(str, 10, 8)
 	if err != nil || n == 0 {
 		return bitset{}, ErrInvalid
 	}
+	return setbits(n, limit)
+}
+
+func setbits(n, limit uint64) (bitset, error) {
 	var b bitset
 	if n > limit {
 		return b, ErrInvalid
@@ -357,17 +413,24 @@ func (b bitset) and(other bitset) bitset {
 	return other
 }
 
+func (b bitset) zeros() int {
+	var z int
+	for _, set := range []uint64{b.low, b.high} {
+		for i := 0; i < 64; i++ {
+			b := set & 0x1
+			if b != 0 {
+				return z
+			}
+			z++
+			set = set >> 1
+		}
+	}
+	return z
+}
+
 func (b bitset) ones() int {
 	return bits.OnesCount64(b.high) + bits.OnesCount64(b.low)
 }
-
-// func (b bitset) String() string {
-// 	str := make([]byte, 0, 67)
-// 	for i := 56; i >= 0; i -= 8 {
-// 		_ = i
-// 	}
-// 	return string(str)
-// }
 
 func parseIPv4(str string) (IP, error) {
 	var (
@@ -416,6 +479,13 @@ func parseIPv6(str string) (IP, error) {
 		j++
 	}
 	return IPv6(ip[0], ip[1], ip[2], ip[3], ip[4], ip[5], ip[6], ip[7]), nil
+}
+
+func makeIP(set bitset, z zone) IP {
+	return IP{
+		set:  set,
+		zone: z,
+	}
 }
 
 const (
