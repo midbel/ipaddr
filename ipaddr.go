@@ -304,6 +304,14 @@ func (n Net) Contains(ip IP) bool {
 	return set.equal(n.ip.set)
 }
 
+func (n Net) Less(other Net) bool {
+	less := n.mask.zeros() > other.mask.zeros()
+  if !less {
+    less = n.ip.Less(other.ip)
+  }
+  return less
+}
+
 func (n Net) IsZero() bool {
 	return n.ip.set.isZero() && n.mask.isZero()
 }
