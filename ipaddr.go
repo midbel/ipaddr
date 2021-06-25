@@ -216,10 +216,13 @@ func (i IP) IsLoopback() bool {
 }
 
 func (i IP) IsMulticast() bool {
-	if i.zone != z4 {
+	if i.zone == 0 {
 		return false
 	}
-	return byte(i.set.low>>4) == 0b1110
+	if i.zone == z4 {
+		return byte(i.set.low>>4) == 0b1110
+	}
+	return byte(i.set.high>>56) == 0b1111_1111
 }
 
 func (i IP) IsUndefined() bool {
@@ -227,8 +230,12 @@ func (i IP) IsUndefined() bool {
 }
 
 func (i IP) IsPrivate() bool {
-	if i.zone != z4 {
+	if i.zone == 0 {
 		return false
+	}
+	if i.zone == z6 {
+		prefix := i.set.high >> 56
+		return prefix == 0xfd || prefix == 0xfc
 	}
 	var (
 		fst = byte(i.set.low >> 24)
@@ -252,7 +259,7 @@ func (i IP) IsLinkLocal() bool {
 		fst, snd := byte(i.set.low>>24), byte(i.set.low>>16)
 		return fst == 169 && snd == 254
 	}
-	return false
+	return uint16(i.set.high>>54) == 0b1111_1110_10
 }
 
 func (i IP) Class() Class {
