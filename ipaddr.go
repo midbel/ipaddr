@@ -77,7 +77,8 @@ func (z zone) String() string {
 }
 
 type IP struct {
-	set bitset
+	set  bitset
+	mask uint8
 	zone
 }
 
@@ -110,7 +111,8 @@ func ParseCIDR(str string) (IP, Net, error) {
 	if err != nil {
 		return ip, nw, ErrInvalid
 	}
-	nw, err = ip.Mask(uint8(mask))
+	ip.mask = uint8(mask)
+	nw, err = ip.Mask(ip.mask)
 	return ip, nw, err
 }
 
@@ -191,8 +193,11 @@ func (i IP) Mask(mask uint8) (Net, error) {
 }
 
 func (i IP) Net() (Net, error) {
-	mask := i.DefaultMask()
-	return i.Mask(uint8(mask))
+	m := i.mask
+	if m == 0 {
+		m = uint8(i.DefaultMask())
+	}
+	return i.Mask(m)
 }
 
 func (i IP) DefaultMask() int {
@@ -306,10 +311,10 @@ func (n Net) Contains(ip IP) bool {
 
 func (n Net) Less(other Net) bool {
 	less := n.mask.zeros() > other.mask.zeros()
-  if !less {
-    less = n.ip.Less(other.ip)
-  }
-  return less
+	if !less {
+		less = n.ip.Less(other.ip)
+	}
+	return less
 }
 
 func (n Net) IsZero() bool {

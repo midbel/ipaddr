@@ -68,57 +68,57 @@ func checkRoutes(topo Topology, addrs []string) {
 	for _, a := range as {
 		r, err := topo.BestRoute(a)
 		if err != nil {
-      fmt.Println(err)
+			fmt.Println(err)
 			continue
 		}
-    hops, err := next(a, r, topo.Routers)
-    if err != nil {
-      fmt.Println(err)
-      continue
-    }
-    printHops(append(hops, a))
+		hops, err := next(a, r, topo.Routers)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		printHops(append(hops, a))
 	}
 }
 
 func printHops(list []ipaddr.IP) {
-  for i := range list {
-    if i > 0 {
-      fmt.Print(" -> ")
-    }
-    fmt.Print(list[i])
-  }
-  fmt.Println()
+	for i := range list {
+		if i > 0 {
+			fmt.Print(" -> ")
+		}
+		fmt.Print(list[i])
+	}
+	fmt.Println()
 }
 
 func next(ip ipaddr.IP, route Route, routers []Router) ([]ipaddr.IP, error) {
-  var list []ipaddr.IP
-  for {
-    if hasLoop(route.Gateway.IP, list) {
-      return nil, fmt.Errorf("%s: loop detected", route.Gateway.IP)
-    }
-    list = append(list, route.Gateway.IP)
-    r, err := findRouter(route.Gateway, routers)
-    if err != nil {
-      return nil, err
-    }
-    if r.IsEmpty() {
-      break
-    }
-    route, err = r.BestRoute(ip)
-    if err != nil {
-      return nil, err
-    }
-  }
-  return list, nil
+	var list []ipaddr.IP
+	for {
+		if hasLoop(route.Gateway.IP, list) {
+			return nil, fmt.Errorf("%s: loop detected", route.Gateway.IP)
+		}
+		list = append(list, route.Gateway.IP)
+		r, err := findRouter(route.Gateway, routers)
+		if err != nil {
+			return nil, err
+		}
+		if r.IsEmpty() {
+			break
+		}
+		route, err = r.BestRoute(ip)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return list, nil
 }
 
 func hasLoop(ip ipaddr.IP, list []ipaddr.IP) bool {
-  for i := range list {
-    if list[i].Equal(ip) {
-      return true
-    }
-  }
-  return false
+	for i := range list {
+		if list[i].Equal(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 type Addr struct {
@@ -126,7 +126,7 @@ type Addr struct {
 }
 
 func (a *Addr) Equal(other Addr) bool {
-  return a.IP.Equal(other.IP)
+	return a.IP.Equal(other.IP)
 }
 
 func (a *Addr) Less(other Addr) bool {
