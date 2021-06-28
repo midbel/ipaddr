@@ -192,6 +192,10 @@ func (n *Net) Set(v interface{}) error {
 		return fmt.Errorf("%v: string expected (got %[1]T)", v)
 	}
 	_, nw, err := ipaddr.ParseCIDR(str)
+	if err != nil {
+		ip, _ := ipaddr.ParseIP(str)
+		nw, err = ip.Net()
+	}
 	if err == nil {
 		n.Net = nw
 	}

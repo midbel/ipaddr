@@ -209,6 +209,12 @@ func (i IP) Mask(mask uint8) (Net, error) {
 }
 
 func (i IP) Net() (Net, error) {
+	if i.IsUndefined() {
+		n := Net{
+			ip: i,
+		}
+		return n, nil
+	}
 	m := i.mask
 	if m == 0 {
 		m = uint8(i.DefaultMask())
