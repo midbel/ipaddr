@@ -12,13 +12,12 @@ import (
 
 func main() {
 	var (
-		config = flag.String("f", "", "topology")
 		print  = flag.Bool("p", false, "print route tables")
 		check  = flag.Bool("c", false, "check routes with list of routers")
 	)
 	flag.Parse()
 
-	topo, err := Load(*config)
+	topo, err := Load(flag.Arg(0))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -27,11 +26,11 @@ func main() {
 	case *print:
 		printTables(topo)
 	case *check:
-		checkRoutes(topo, flag.Args())
+		checkRoutes(topo)
 	}
 }
 
-const line = " %-16s | %-16s | %-16s | %s"
+const line = " %-16s | %-16s | %-16s | %s | %4d | %s"
 
 func printTables(topo Topology) {
 	printRoutes(topo.Routes)
@@ -51,23 +50,12 @@ func printTables(topo Topology) {
 
 func printRoutes(rs []Route) {
 	for _, r := range rs {
-		fmt.Printf(line, r.NetAddr.Address(), r.NetAddr.Netmask(), r.Gateway, r.Iface)
+		fmt.Printf(line, r.NetAddr.Address(), r.NetAddr.Netmask(), r.Gateway, r.Iface, r.Metric, r.Status.String())
 		fmt.Println()
 	}
 }
 
-func checkRoutes(topo Topology, addrs []string) {
-	if len(addrs) > 0 {
-		as := make([]Addr, 0, len(addrs))
-		for _, a := range addrs {
-			ip, err := ipaddr.ParseIP(a)
-			if err != nil {
-				continue
-			}
-			as = append(as, Addr{IP: ip})
-		}
-		topo.Addrs = append(topo.Addrs, as...)
-	}
+func checkRoutes(topo Topology) {
 	for _, a := range topo.Addrs {
 		r, err := topo.BestRoute(a.IP)
 		if err != nil {
@@ -148,12 +136,54 @@ func (a *Addr) Set(v interface{}) error {
 	return err
 }
 
+type Status byte
+
+const (
+	Up Status = iota << 1
+	Down
+)
+
+func (s *Status) String() string {
+	switch *s {
+	case Up:
+		return "U"
+	case Down:
+		return "D"
+	default:
+		return "?"
+	}
+}
+
+func (s *Status) Set(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("%v: string expected (got %[1]T)", v)
+	}
+	switch str {
+	case "U":
+		*s = Up
+	case "D", "":
+		*s = Down
+	default:
+		return fmt.Errorf("%s: unknown status", str)
+	}
+	return nil
+}
+
+func (s *Status) Up() bool {
+	return *s == Up
+}
+
 type Net struct {
 	ipaddr.Net
 }
 
 func (n *Net) Less(other Net) bool {
 	return n.Net.Less(other.Net)
+}
+
+func (n *Net) Equal(other Net) bool {
+	return n.Net.Equal(other.Net)
 }
 
 func (n *Net) Set(v interface{}) error {
@@ -172,9 +202,14 @@ type Route struct {
 	NetAddr Net    `fig:"network"`
 	Gateway Addr   `fig:"gateway"`
 	Iface   string `fig:"iface"`
+	Status  Status
+	Metric  int
 }
 
 func (r Route) Match(ip ipaddr.IP) bool {
+	if !r.Status.Up() {
+		return false
+	}
 	return r.NetAddr.Contains(ip)
 }
 
@@ -208,12 +243,12 @@ func Load(file string) (topo Topology, err error) {
 	if err := fig.Decode(r, &topo); err != nil {
 		return topo, err
 	}
-	sortRoutes(topo.Routes)
+	topo.Routes = sortRoutes(topo.Routes)
 	sort.Slice(topo.Routers, func(i, j int) bool {
 		return !topo.Routers[i].Addr.Less(topo.Routers[j].Addr)
 	})
 	for _, r := range topo.Routers {
-		sortRoutes(r.Routes)
+		r.Routes = sortRoutes(r.Routes)
 	}
 	return topo, nil
 }
@@ -242,8 +277,9 @@ func bestRoute(ip ipaddr.IP, routes []Route) (Route, error) {
 	return Route{}, fmt.Errorf("%s: network unreachable", nw)
 }
 
-func sortRoutes(routes []Route) {
+func sortRoutes(routes []Route) []Route {
 	sort.Slice(routes, func(i, j int) bool {
-		return !routes[i].NetAddr.Less(routes[j].NetAddr)
+		return routes[i].NetAddr.Less(routes[j].NetAddr) || routes[i].NetAddr.Equal(routes[j].NetAddr)
 	})
+	return routes
 }

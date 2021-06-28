@@ -7,30 +7,40 @@ route {
   network = "10.1.0.0/24"
   gateway = "192.168.1.1"
   iface   = "eth0"
+  metric  = 10
+  status  = 'U'
 }
 
 route {
   network = "10.10.0.0/24"
   gateway = "192.168.1.1"
   iface   = "eth0"
+  metric  = 10
+  status  = 'U'
 }
 
 route {
   network = "8.0.0.0/8"
   gateway = "192.168.67.1"
   iface   = "eth1"
+  metric  = 10
+  status  = 'U'
 }
 
 route {
   network = "172.16.0.0/16"
   gateway = "192.168.67.1"
   iface   = "eth1"
+  metric  = 10
+  status  = 'U'
 }
 
 route {
   network = $passthru
   gateway = "192.168.67.1"
   iface   = "eth1"
+  metric  = 10
+  status  = 'U'
 }
 
 router {
@@ -46,16 +56,22 @@ router {
     network = '172.16.0.0/16'
     gateway = '172.16.0.1'
     iface   = 'eth0'
+    metric  = 10
+    status  = 'U'
   }
   route {
     network = '8.0.0.0/8'
     gateway = '193.144.1.1'
     iface   = 'eth0'
+    metric  = 10
+    status  = 'U'
   }
   route {
     network = '8.0.0.0/24'
     gateway = '193.144.1.3'
     iface   = 'eth1'
+    metric  = 10
+    status  = 'U'
   }
 }
 

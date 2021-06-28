@@ -39,6 +39,7 @@ func main() {
 		{Line: "network    : %s", Value: nw.Address()},
 		{Line: "broadcast  : %s", Value: nw.Broadcast(), Only4: true},
 		{Line: "netmask    : %s", Value: nw.Netmask()},
+		{Line: "size:      : %d", Value: nw.Size()},
 		{Line: "host(s)    : %.0f", Value: nw.Count()},
 	}
 	for i := range fields {

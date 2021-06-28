@@ -325,12 +325,16 @@ func (n Net) Contains(ip IP) bool {
 	return set.equal(n.ip.set)
 }
 
+func (n Net) Size() int {
+	return n.mask.ones()
+}
+
+func (n Net) Equal(other Net) bool {
+	return n.mask.equal(other.mask) && n.ip.Equal(other.ip)
+}
+
 func (n Net) Less(other Net) bool {
-	less := n.mask.zeros() > other.mask.zeros()
-	if !less {
-		less = n.ip.Less(other.ip)
-	}
-	return less
+	return n.mask.ones() > other.mask.ones()
 }
 
 func (n Net) IsZero() bool {
