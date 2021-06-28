@@ -57,26 +57,29 @@ func printRoutes(rs []Route) {
 }
 
 func checkRoutes(topo Topology, addrs []string) {
-	as := make([]ipaddr.IP, 0, len(addrs))
-	for _, a := range addrs {
-		ip, err := ipaddr.ParseIP(a)
-		if err != nil {
-			continue
+	if len(addrs) > 0 {
+		as := make([]Addr, 0, len(addrs))
+		for _, a := range addrs {
+			ip, err := ipaddr.ParseIP(a)
+			if err != nil {
+				continue
+			}
+			as = append(as, Addr{IP: ip})
 		}
-		as = append(as, ip)
+		topo.Addrs = append(topo.Addrs, as...)
 	}
-	for _, a := range as {
-		r, err := topo.BestRoute(a)
+	for _, a := range topo.Addrs {
+		r, err := topo.BestRoute(a.IP)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		hops, err := next(a, r, topo.Routers)
+		hops, err := next(a.IP, r, topo.Routers)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		printHops(append(hops, a))
+		printHops(append(hops, a.IP))
 	}
 }
 
@@ -190,7 +193,7 @@ func (r Router) BestRoute(ip ipaddr.IP) (Route, error) {
 }
 
 type Topology struct {
-	// Addrs   []Addr   `fig:"addr"`
+	Addrs   []Addr   `fig:"addr"`
 	Routes  []Route  `fig:"route"`
 	Routers []Router `fig:"router"`
 }

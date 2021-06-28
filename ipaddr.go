@@ -176,6 +176,22 @@ func (i IP) Is6() bool {
 	return i.zone == z6
 }
 
+func (i IP) To4() IP {
+	if i.Is4() {
+		return i
+	}
+	return Zero
+}
+
+func (i IP) To6() IP {
+	if i.Is6() {
+		return i
+	}
+	i.zone = z6
+	i.set.low |= 0xffff << 32
+	return Zero
+}
+
 func (i IP) Mask(mask uint8) (Net, error) {
 	limit := netmask32
 	if i.zone == z6 {
