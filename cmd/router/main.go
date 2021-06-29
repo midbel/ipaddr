@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/midbel/fig"
 	"github.com/midbel/ipaddr"
@@ -12,8 +13,9 @@ import (
 
 func main() {
 	var (
-		print  = flag.Bool("p", false, "print route tables")
-		check  = flag.Bool("c", false, "check routes with list of routers")
+		print = flag.Bool("p", false, "print route tables")
+		check = flag.Bool("c", false, "check routes with list of routers")
+		graph = flag.Bool("g", false, "print graph")
 	)
 	flag.Parse()
 
@@ -27,7 +29,33 @@ func main() {
 		printTables(topo)
 	case *check:
 		checkRoutes(topo, flag.Args())
+	case *graph:
+		printGraph(topo)
 	}
+}
+
+func printGraph(topo Topology) {
+	n := buildGraph(topo)
+	for _, n := range n.Nodes {
+		printNode(n, 0)
+	}
+}
+
+const step = 2
+
+func printNode(n Node, level int) {
+	prefix := strings.Repeat(" ", level)
+	fmt.Printf("%s- %s(%s) [", prefix, n.Router.Id, n.Router.Addr)
+	fmt.Println()
+	for _, n := range n.Nodes {
+		printNode(n, level+step)
+	}
+	if len(n.Nodes) == 0 {
+		fmt.Printf("%s<empty>", strings.Repeat(" ", level+step+1))
+		fmt.Println()
+	}
+	fmt.Printf("%s  ]", prefix)
+	fmt.Println()
 }
 
 const line = " %-16s | %-16s | %-16s | %6s | %4d | %s"
@@ -50,7 +78,7 @@ func printTables(topo Topology) {
 
 func printRoutes(rs []Route) {
 	for _, r := range rs {
-		fmt.Printf(line, r.NetAddr.Address(), r.NetAddr.Netmask(), r.Gateway, r.Iface, r.Metric, r.Status.String())
+		fmt.Printf(line, r.NetAddr.Address(), r.NetAddr.Netmask(), r.Gateway, r.Iface, r.Metric, r.State.String())
 		fmt.Println()
 	}
 }
@@ -217,12 +245,12 @@ type Route struct {
 	NetAddr Net    `fig:"network"`
 	Gateway Addr   `fig:"gateway"`
 	Iface   string `fig:"iface"`
-	Status  Status
+	State   Status
 	Metric  int
 }
 
 func (r Route) Match(ip ipaddr.IP) bool {
-	if !r.Status.Up() {
+	if !r.State.Up() {
 		return false
 	}
 	return r.NetAddr.Contains(ip) || r.NetAddr.IsZero()
@@ -297,4 +325,38 @@ func sortRoutes(routes []Route) []Route {
 		return routes[i].NetAddr.Less(routes[j].NetAddr)
 	})
 	return routes
+}
+
+type Node struct {
+	Router
+	Via   Net
+	State Status
+	Nodes []Node
+}
+
+func buildGraph(topo Topology) Node {
+	var n Node
+	for _, r := range topo.Routers {
+		c := Node{
+			Router: r,
+			Nodes:  buildNode(r, topo.Routers),
+		}
+		n.Nodes = append(n.Nodes, c)
+	}
+	return n
+}
+
+func buildNode(r Router, routers []Router) []Node {
+	var ns []Node
+	for _, r := range r.Routes {
+		rs, err := findRouter(r.Gateway, routers)
+		if err == nil {
+			n := Node{
+				Router: rs,
+				Nodes:  buildNode(rs, routers),
+			}
+			ns = append(ns, n)
+		}
+	}
+	return ns
 }
