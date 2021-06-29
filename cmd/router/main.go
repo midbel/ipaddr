@@ -45,7 +45,11 @@ const step = 2
 
 func printNode(n Node, level int) {
 	prefix := strings.Repeat(" ", level)
-	fmt.Printf("%s- %s(%s) [", prefix, n.Router.Id, n.Router.Addr)
+	if !n.Via.Net.IsZero() {
+		fmt.Printf("%s- %s(%s -> %s) [", prefix, n.Router.Id, n.Router.Addr, n.Via.Net)
+	} else {
+		fmt.Printf("%s- %s(%s) [", prefix, n.Router.Id, n.Router.Addr)
+	}
 	fmt.Println()
 	for _, n := range n.Nodes {
 		printNode(n, level+step)
@@ -335,8 +339,15 @@ type Node struct {
 }
 
 func buildGraph(topo Topology) Node {
-	var n Node
-	for _, r := range topo.Routers {
+	var (
+		n Node
+		rs = make([]Router, len(topo.Routers))
+	)
+	copy(rs, topo.Routers)
+	sort.Slice(rs, func(i, j int) bool {
+		return len(rs[i].Routes) > len(rs[j].Routes)
+	})
+	for _, r := range rs {
 		c := Node{
 			Router: r,
 			Nodes:  buildNode(r, topo.Routers),
@@ -353,6 +364,7 @@ func buildNode(r Router, routers []Router) []Node {
 		if err == nil {
 			n := Node{
 				Router: rs,
+				Via: r.NetAddr,
 				Nodes:  buildNode(rs, routers),
 			}
 			ns = append(ns, n)
