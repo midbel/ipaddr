@@ -26,11 +26,11 @@ func main() {
 	case *print:
 		printTables(topo)
 	case *check:
-		checkRoutes(topo)
+		checkRoutes(topo, flag.Args())
 	}
 }
 
-const line = " %-16s | %-16s | %-16s | %s | %4d | %s"
+const line = " %-16s | %-16s | %-16s | %6s | %4d | %s"
 
 func printTables(topo Topology) {
 	printRoutes(topo.Routes)
@@ -55,7 +55,17 @@ func printRoutes(rs []Route) {
 	}
 }
 
-func checkRoutes(topo Topology) {
+func checkRoutes(topo Topology, args []string) {
+	if z := len(args[1:]); z > 0 {
+		as := make([]Addr, 0, z)
+		for i := range args[1:] {
+			ip, _, err := ipaddr.ParseCIDR(args[i+1])
+			if err == nil {
+				as = append(as, Addr{ip})
+			}
+		}
+		topo.Addrs = append(topo.Addrs, as...)
+	}
 	for _, a := range topo.Addrs {
 		r, err := topo.BestRoute(a.IP)
 		if err != nil {
@@ -72,9 +82,10 @@ func checkRoutes(topo Topology) {
 }
 
 func printHops(list []ipaddr.IP) {
+	fmt.Printf("%2d hop(s): ", len(list)-1)
 	for i := range list {
 		if i > 0 {
-			fmt.Print(" -> ")
+			fmt.Print(" \u279C ")
 		}
 		fmt.Print(list[i])
 	}
@@ -214,7 +225,7 @@ func (r Route) Match(ip ipaddr.IP) bool {
 	if !r.Status.Up() {
 		return false
 	}
-	return r.NetAddr.Contains(ip)
+	return r.NetAddr.Contains(ip) || r.NetAddr.IsZero()
 }
 
 type Router struct {
@@ -283,7 +294,7 @@ func bestRoute(ip ipaddr.IP, routes []Route) (Route, error) {
 
 func sortRoutes(routes []Route) []Route {
 	sort.Slice(routes, func(i, j int) bool {
-		return routes[i].NetAddr.Less(routes[j].NetAddr) || routes[i].NetAddr.Equal(routes[j].NetAddr)
+		return routes[i].NetAddr.Less(routes[j].NetAddr)
 	})
 	return routes
 }
