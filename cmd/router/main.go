@@ -34,6 +34,8 @@ func main() {
 	}
 }
 
+const arrow = "\u279C"
+
 func printGraph(topo Topology) {
 	n := buildGraph(topo)
 	for _, n := range n.Nodes {
@@ -45,10 +47,12 @@ const step = 2
 
 func printNode(n Node, level int) {
 	prefix := strings.Repeat(" ", level)
+	fmt.Print(prefix)
+	fmt.Printf("%s ", n.Router.Id)
 	if !n.Via.Net.IsZero() {
-		fmt.Printf("%s- %s(%s -> %s) [", prefix, n.Router.Id, n.Router.Addr, n.Via.Net)
+		fmt.Printf("(%s %s %s) [", n.Router.Addr, arrow, n.Via.Net)
 	} else {
-		fmt.Printf("%s- %s(%s) [", prefix, n.Router.Id, n.Router.Addr)
+		fmt.Printf("(%s) [", n.Router.Addr)
 	}
 	fmt.Println()
 	for _, n := range n.Nodes {
@@ -58,7 +62,7 @@ func printNode(n Node, level int) {
 		fmt.Printf("%s<empty>", strings.Repeat(" ", level+step+1))
 		fmt.Println()
 	}
-	fmt.Printf("%s  ]", prefix)
+	fmt.Printf("%s]", prefix)
 	fmt.Println()
 }
 
@@ -117,7 +121,7 @@ func printHops(list []ipaddr.IP) {
 	fmt.Printf("%2d hop(s): ", len(list)-1)
 	for i := range list {
 		if i > 0 {
-			fmt.Print(" \u279C ")
+			fmt.Printf(" %s ", arrow)
 		}
 		fmt.Print(list[i])
 	}
@@ -135,7 +139,7 @@ func next(ip ipaddr.IP, route Route, routers []Router) ([]ipaddr.IP, error) {
 		if err != nil {
 			return nil, err
 		}
-		if r.IsEmpty() {
+		if r.IsHost() || r.IsEmpty() {
 			break
 		}
 		route, err = r.BestRoute(ip)
@@ -260,10 +264,47 @@ func (r Route) Match(ip ipaddr.IP) bool {
 	return r.NetAddr.Contains(ip) || r.NetAddr.IsZero()
 }
 
+type Type byte
+
+const (
+	TypeHost = iota + 1
+	TypeRouter
+	TypeSwitch
+	TypeFirewall
+)
+
+func (t *Type) Set(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("%v: string expected (got %[1]T)", v)
+	}
+	switch str {
+	case "", "host":
+		*t = TypeHost
+	case "fw", "firewall":
+		*t = TypeFirewall
+	case "switch":
+		*t = TypeSwitch
+	case "router":
+		*t = TypeRouter
+	default:
+	}
+	return nil
+}
+
+func (t *Type) String() string {
+	return ""
+}
+
 type Router struct {
-	Id     string  `fig:"id"`
+	Id     string `fig:"id"`
+	Type   Type
 	Addr   Addr    `fig:"ip"`
 	Routes []Route `fig:"route"`
+}
+
+func (r Router) IsHost() bool {
+	return len(r.Routes) == 0 || r.Type == TypeHost
 }
 
 func (r Router) IsEmpty() bool {
@@ -277,7 +318,7 @@ func (r Router) BestRoute(ip ipaddr.IP) (Route, error) {
 type Topology struct {
 	Addrs   []Addr   `fig:"addr"`
 	Routes  []Route  `fig:"route"`
-	Routers []Router `fig:"router"`
+	Routers []Router `fig:"device"`
 }
 
 func Load(file string) (topo Topology, err error) {
@@ -333,14 +374,17 @@ func sortRoutes(routes []Route) []Route {
 
 type Node struct {
 	Router
-	Via   Net
-	State Status
-	Nodes []Node
+	MaxDepth int
+	Depth    int
+	Cost     int
+	Via      Net
+	State    Status
+	Nodes    []Node
 }
 
 func buildGraph(topo Topology) Node {
 	var (
-		n Node
+		n  Node
 		rs = make([]Router, len(topo.Routers))
 	)
 	copy(rs, topo.Routers)
@@ -350,25 +394,42 @@ func buildGraph(topo Topology) Node {
 	for _, r := range rs {
 		c := Node{
 			Router: r,
-			Nodes:  buildNode(r, topo.Routers),
+			Depth:  1,
+		}
+		c.Nodes, c.MaxDepth = buildNode(r, topo.Routers, c.Depth+1)
+		c.MaxDepth++
+		if n.MaxDepth == 0 || c.MaxDepth > n.MaxDepth {
+			n.MaxDepth = c.MaxDepth
 		}
 		n.Nodes = append(n.Nodes, c)
 	}
 	return n
 }
 
-func buildNode(r Router, routers []Router) []Node {
-	var ns []Node
+func buildNode(r Router, routers []Router, level int) ([]Node, int) {
+	var (
+		ns []Node
+		dp int
+	)
+	if len(r.Routes) == 0 {
+		return ns, 0
+	}
 	for _, r := range r.Routes {
 		rs, err := findRouter(r.Gateway, routers)
-		if err == nil {
-			n := Node{
-				Router: rs,
-				Via: r.NetAddr,
-				Nodes:  buildNode(rs, routers),
-			}
-			ns = append(ns, n)
+		if err != nil {
+			continue
 		}
+		n := Node{
+			Router: rs,
+			Depth:  level,
+			Via:    r.NetAddr,
+		}
+		n.Nodes, n.MaxDepth = buildNode(rs, routers, level+1)
+		n.MaxDepth++
+		if dp == 0 || n.MaxDepth > dp {
+			dp = n.MaxDepth
+		}
+		ns = append(ns, n)
 	}
-	return ns
+	return ns, dp
 }

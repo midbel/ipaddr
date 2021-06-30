@@ -8,7 +8,7 @@ addr = '172.16.1.181'
 route {
   network = "10.0.1.0/24"
   gateway = $private
-  iface   = "eth0"
+  iface   = eth0
   metric  = 10
   status  = U
 }
@@ -16,7 +16,7 @@ route {
 route {
   network = "10.0.2.0/24"
   gateway = $private
-  iface   = "eth0"
+  iface   = eth0
   metric  = 10
   status  = U
 }
@@ -24,7 +24,7 @@ route {
 route {
   network = "8.0.0.0/8"
   gateway = $support
-  iface   = "eth1"
+  iface   = eth1
   metric  = 10
   status  = U
 }
@@ -32,7 +32,15 @@ route {
 route {
   network = "172.16.0.0/12"
   gateway = $support
-  iface   = "eth1"
+  iface   = eth1
+  metric  = 50
+  status  = U
+}
+
+route {
+  network = "172.16.0.0/12"
+  gateway = $private
+  iface   = eth0
   metric  = 10
   status  = U
 }
@@ -40,19 +48,15 @@ route {
 route {
   network = $passthru
   gateway = $support
-  iface   = "eth1"
+  iface   = eth1
   metric  = 10
   status  = U
 }
 
-router {
-  id = private
-  ip = $private
-}
-
-router {
-  id = support
-  ip = $support
+device {
+  id   = support
+  ip   = $support
+  type = router
 
   route {
     network = '172.16.0.0/12'
@@ -84,9 +88,10 @@ router {
   }
 }
 
-router {
-  id = "dmz"
-  ip = $dmz
+device {
+  id   = "dmz"
+  ip   = $dmz
+  type = router
   route {
     network = '193.144.17.0/24'
     gateway = '193.144.17.1'
@@ -96,12 +101,28 @@ router {
   }
 }
 
-router {
-  id = test
-  ip = "172.16.0.1"
+device {
+  id   = private
+  ip   = $private
+  type = router
+
+  route {
+    network = '172.16.0.0/12'
+    gateway = '172.16.0.1'
+    iface   = 'eth0'
+    metric  = 10
+    status  = U
+  }
 }
 
-router {
-  id = public
-  ip = '193.144.17.1'
+device {
+  id   = test
+  ip   = "172.16.0.1"
+  type = host
+}
+
+device {
+  id   = public
+  ip   = '193.144.17.1'
+  type = host
 }
